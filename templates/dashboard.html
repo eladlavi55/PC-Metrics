@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC MetricsX - Gaming PC Monitor</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Gaming Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #1e1e1e;
+            --accent-cyan: #00ffff;
+            --accent-purple: #8a2be2;
+            --accent-green: #00ff41;
+            --accent-red: #ff073a;
+            --accent-orange: #ff6b35;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --border-color: #333333;
+            --glow-cyan: 0 0 20px rgba(0, 255, 255, 0.5);
+            --glow-purple: 0 0 20px rgba(138, 43, 226, 0.5);
+            --glow-green: 0 0 20px rgba(0, 255, 65, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(138, 43, 226, 0.1) 0%, transparent 50%);
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(45deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: var(--glow-cyan);
+        }
+
+        .aws-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected {
+            background: var(--accent-green);
+            box-shadow: var(--glow-green);
+        }
+
+        .status-disconnected {
+            background: var(--accent-red);
+            box-shadow: 0 0 20px rgba(255, 7, 58, 0.5);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+        }
+
+        .card-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .component-card {
+            min-height: 300px;
+        }
+
+        .component-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .component-model {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .temp-value {
+            color: var(--accent-orange);
+        }
+
+        .fan-value {
+            color: var(--accent-cyan);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 1rem;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .ai-panel {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(138, 43, 226, 0.1) 100%);
+            border: 1px solid var(--accent-purple);
+        }
+
+        .ai-controls {
+            margin-bottom: 1rem;
+        }
+
+        .preference-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .preference-btn {
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+
+        .preference-btn.active {
+            background: var(--accent-purple);
+            color: var(--text-primary);
+            box-shadow: var(--glow-purple);
+            border-color: var(--accent-purple);
+        }
+
+        .ai-generate-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(45deg, var(--accent-purple), var(--accent-cyan));
+            border: none;
+            color: var(--text-primary);
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ai-generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(138, 43, 226, 0.3);
+        }
+
+        .ai-generate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ai-results {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            display: none;
+        }
+
+        .alert-panel {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 7, 58, 0.1) 100%);
+            border: 1px solid var(--accent-red);
+        }
+
+        .alert-item {
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent-orange);
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-time {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border-color);
+            border-radius: 50%;
+            border-top-color: var(--accent-cyan);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .gaming-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            border-radius: 15px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { box-shadow: 0 0 5px var(--accent-green); }
+            to { box-shadow: 0 0 20px var(--accent-green); }
+        }
+
+        .system-overview {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(0, 255, 255, 0.05) 100%);
+            border: 1px solid var(--accent-cyan);
+        }
+
+        .overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .overview-stat {
+            text-align: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+        }
+
+        .overview-stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .overview-stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            color: var(--accent-cyan);
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .sidebar {
+                order: -1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .logo {
+                font-size: 1.5rem;
+            }
+            
+            .main-container {
+                padding: 1rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-microchip"></i> PC MetricsX
+            </div>
+            <div class="aws-status">
+                <div class="status-indicator" id="awsIndicator"></div>
+                <span id="awsStatusText">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="dashboard-content">
+            <!-- System Overview -->
+            <div class="card system-overview">
+                <div class="card-title">
+                    <i class="fas fa-tachometer-alt"></i>
+                    System Overview
+                </div>
+                <div class="overview-stats" id="systemOverview">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+
+            <!-- Component Cards -->
+            <div class="dashboard-grid" id="componentGrid">
+                <!-- Dynamic component cards will be inserted here -->
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <!-- AI Recommendations Panel -->
+            <div class="card ai-panel">
+                <div class="card-title">
+                    <i class="fas fa-robot"></i>
+                    AI Fan Optimization
+                </div>
+                
+                <div class="ai-controls">
+                    <div class="preference-selector">
+                        <div class="preference-btn active" data-preference="balanced">Balanced</div>
+                        <div class="preference-btn" data-preference="best_temps">Cool</div>
+                        <div class="preference-btn" data-preference="most_quiet">Quiet</div>
+                    </div>
+                    
+                    <button class="ai-generate-btn" id="generateAI">
+                        <i class="fas fa-magic"></i>
+                        Generate Optimal Curves
+                    </button>
+                </div>
+
+                <div class="ai-results" id="aiResults">
+                    <!-- AI recommendations will appear here -->
+                </div>
+            </div>
+
+            <!-- Alerts Panel -->
+            <div class="card alert-panel">
+                <div class="card-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    System Alerts
+                </div>
+                <div id="alertsContainer">
+                    <div class="alert-item">
+                        <div class="alert-time">System Ready</div>
+                        <div>PC MetricsX monitoring initialized</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let socket;
+        let charts = {};
+        let currentPreference = 'balanced';
+        let componentModels = {};
+
+        // Component configurations
+        const COMPONENTS = [
+            { key: 'cpu', name: 'CPU', icon: 'fas fa-microchip', color: '#ff6b35' },
+            { key: 'gpu', name: 'GPU', icon: 'fas fa-tv', color: '#8a2be2' },
+            { key: 'ssd', name: 'SSD', icon: 'fas fa-hdd', color: '#00ff41' },
+            { key: 'motherboard', name: 'Motherboard', icon: 'fas fa-memory', color: '#00ffff' }
+        ];
+
+        const FANS = [
+            { key: 'cpu_fan', name: 'CPU Fan', component: 'cpu', color: '#ff6b35' },
+            { key: 'gpu_fan', name: 'GPU Fan', component: 'gpu', color: '#8a2be2' },
+            { key: 'case_fan', name: 'Case Fan', component: 'case', color: '#00ffff' }
+        ];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeComponents();
+            initializeAIControls();
+            loadInitialData();
+        });
+
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Connected to PC MetricsX server');
+            });
+
+            socket.on('sensor_update', function(data) {
+                updateDashboard(data);
+            });
+
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+                updateAWSStatus(false);
+            });
+        }
+
+        function initializeComponents() {
+            const grid = document.getElementById('componentGrid');
+            
+            // Create temperature component cards
+            COMPONENTS.forEach(component => {
+                const card = createComponentCard(component, 'temperature');
+                grid.appendChild(card);
+            });
+
+            // Create fan component cards  
+            FANS.forEach(fan => {
+                const card = createFanCard(fan);
+                grid.appendChild(card);
+            });
+        }
+
+        function createComponentCard(component, type) {
+            const card = document.createElement('div');
+            card.className = 'card component-card';
+            card.id = `${component.key}-card`;
+            
+            card.innerHTML = `
+                <div class="component-header">
+                    <div class="card-title">
+                        <i class="${component.icon}"></i>
+                        ${component.name}
+                    </div>
+                    <div class="component-model" id="${component.key}-model">Loading...</div>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <div class="metric-label">Temperature</div>
+                        <div class="metric-value temp-value" id="${component.key}-temp">--°C</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Status</div>
+                        <div class="metric-value" id="${component.key}-status" style="font-size: 1rem;">Normal</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="${component.key}-chart"></canvas>
+                </div>
+            `;
+
+            // Initialize chart
+            setTimeout(() => initializeChart(`${component.key}-chart`, component.name + ' Temperature', component.color), 100);
+            
+            return card;
+        }
+
+        function createFanCard(fan) {
+            const card = document.createElement('div');
+            card.className = 'card component-card';
+            card.id = `${fan.key}-card`;
+            
+            card.innerHTML = `
+                <div class="component-header">
+                    <div class="card-title">
+                        <i class="fas fa-fan"></i>
+                        ${fan.name}
+                    </div>
+                    <div class="component-model" id="${fan.key}-model">Loading...</div>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <div class="metric-label">Speed</div>
+                        <div class="metric-value fan-value" id="${fan.key}-rpm">-- RPM</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Load</div>
+                        <div class="metric-value" id="${fan.key}-load" style="font-size: 1rem;">--%</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="${fan.key}-chart"></canvas>
+                </div>
+            `;
+
+            // Initialize chart
+            setTimeout(() => initializeChart(`${fan.key}-chart`, fan.name + ' Speed', fan.color), 100);
+            
+            return card;
+        }
+
+        function initializeChart(canvasId, label, color) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            charts[canvasId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute',
+                                displayFormats: {
+                                    minute: 'HH:mm'
+                                }
+                            },
+                            grid: {
+                                color: '#333333'
+                            },
+                            ticks: {
+                                color: '#888888'
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: '#333333'
+                            },
+                            ticks: {
+                                color: '#888888'
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            borderColor: color,
+                            backgroundColor: color
+                        }
+                    }
+                }
+            });
+        }
+
+        function initializeAIControls() {
+            // Preference selector
+            document.querySelectorAll('.preference-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.preference-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentPreference = this.dataset.preference;
+                });
+            });
+
+            // AI generate button
+            document.getElementById('generateAI').addEventListener('click', generateAIRecommendations);
+        }
+
+        function loadInitialData() {
+            fetch('/api/current_data')
+                .then(response => response.json())
+                .then(data => {
+                    componentModels = data.component_models;
+                    updateComponentModels();
+                    updateAWSStatus(data.aws_connected);
+                    if (data.current_data && Object.keys(data.current_data).length > 0) {
+                        updateDashboard({ data: data.current_data, aws_status: data.aws_connected });
+                    }
+                })
+                .catch(error => console.error('Error loading initial data:', error));
+
+            // Load historical data for charts
+            loadHistoricalData();
+        }
+
+        function loadHistoricalData() {
+            fetch('/api/history_data?minutes=30')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.history && data.history.length > 0) {
+                        updateChartsWithHistory(data.history);
+                    }
+                })
+                .catch(error => console.error('Error loading historical data:', error));
+        }
+
+        function updateChartsWithHistory(history) {
+            // Update each chart with historical data
+            Object.keys(charts).forEach(chartId => {
+                const chart = charts[chartId];
+                const component = chartId.replace('-chart', '');
+                
+                let dataKey;
+                if (component.includes('_fan')) {
+                    dataKey = component + '_rpm';
+                } else {
+                    dataKey = component + '_temp';
+                }
+
+                const chartData = history.map(entry => ({
+                    x: new Date(entry.timestamp * 1000),
+                    y: entry[dataKey] || 0
+                }));
+
+                chart.data.datasets[0].data = chartData;
+                chart.update('none');
+            });
+        }
+
+        function updateComponentModels() {
+            // Update component model displays
+            Object.keys(componentModels).forEach(key => {
+                const element = document.getElementById(`${key}-model`);
+                if (element) {
+                    element.textContent = componentModels[key];
+                }
+            });
+        }
+
+        function updateDashboard(data) {
+            const sensorData = data.data;
+            
+            // Update AWS status
+            updateAWSStatus(data.aws_status);
+            
+            // Update component values
+            COMPONENTS.forEach(component => {
+                const tempValue = sensorData[`${component.key}_temp`];
+                if (tempValue !== undefined) {
+                    document.getElementById(`${component.key}-temp`).textContent = `${tempValue.toFixed(1)}°C`;
+                    
+                    // Update status based on temperature
+                    const status = getTemperatureStatus(component.key, tempValue);
+                    const statusElement = document.getElementById(`${component.key}-status`);
+                    statusElement.textContent = status.text;
+                    statusElement.style.color = status.color;
+                }
+            });
+
+            // Update fan values
+            FANS.forEach(fan => {
+                const rpmValue = sensorData[`${fan.key}_rpm`];
+                if (rpmValue !== undefined) {
+                    document.getElementById(`${fan.key}-rpm`).textContent = `${Math.round(rpmValue)} RPM`;
+                    
+                    // Calculate fan load percentage (rough estimate)
+                    const maxRpm = 5000; // Approximate max RPM
+                    const loadPercent = Math.min(100, (rpmValue / maxRpm) * 100);
+                    document.getElementById(`${fan.key}-load`).textContent = `${Math.round(loadPercent)}%`;
+                }
+            });
+
+            // Update system overview
+            updateSystemOverview(sensorData);
+
+            // Update charts with new data point
+            updateChartsRealtime(sensorData);
+
+            // Show gaming indicator if gaming session is active
+            updateGamingStatus(sensorData.gaming_session, sensorData.gaming_intensity);
+        }
+
+        function getTemperatureStatus(component, temp) {
+            const thresholds = {
+                cpu: { normal: 70, warning: 85 },
+                gpu: { normal: 75, warning: 85 },
+                ssd: { normal: 60, warning: 70 },
+                motherboard: { normal: 50, warning: 60 }
+            };
+
+            const threshold = thresholds[component];
+            if (temp < threshold.normal) {
+                return { text: 'Normal', color: '#00ff41' };
+            } else if (temp < threshold.warning) {
+                return { text: 'Warm', color: '#ff6b35' };
+            } else {
+                return { text: 'Hot', color: '#ff073a' };
+            }
+        }
+
+        function updateSystemOverview(data) {
+            const overview = document.getElementById('systemOverview');
+            
+            const avgTemp = ((data.cpu_temp + data.gpu_temp + data.ssd_temp + data.motherboard_temp) / 4).toFixed(1);
+            const avgFanSpeed = Math.round((data.cpu_fan_rpm + data.gpu_fan_rpm + data.case_fan_rpm) / 3);
+            const maxTemp = Math.max(data.cpu_temp, data.gpu_temp, data.ssd_temp, data.motherboard_temp).toFixed(1);
+            
+            overview.innerHTML = `
+                <div class="overview-stat">
+                    <div class="overview-stat-label">Avg Temperature</div>
+                    <div class="overview-stat-value">${avgTemp}°C</div>
+                </div>
+                <div class="overview-stat">
+                    <div class="overview-stat-label">Max Temperature</div>
+                    <div class="overview-stat-value" style="color: ${maxTemp > 80 ? '#ff073a' : '#00ffff'}">${maxTemp}°C</div>
+                </div>
+                <div class="overview-stat">
+                    <div class="overview-stat-label">Avg Fan Speed</div>
+                    <div class="overview-stat-value">${avgFanSpeed} RPM</div>
+                </div>
+                <div class="overview-stat">
+                    <div class="overview-stat-label">Gaming Mode</div>
+                    <div class="overview-stat-value" style="color: ${data.gaming_session ? '#00ff41' : '#888888'}">${data.gaming_session ? 'Active' : 'Idle'}</div>
+                </div>
+            `;
+        }
+
+        function updateChartsRealtime(data) {
+            const now = new Date();
+            
+            Object.keys(charts).forEach(chartId => {
+                const chart = charts[chartId];
+                const component = chartId.replace('-chart', '');
+                
+                let value;
+                if (component.includes('_fan')) {
+                    value = data[component + '_rpm'];
+                } else {
+                    value = data[component + '_temp'];
+                }
+
+                if (value !== undefined) {
+                    // Add new data point
+                    chart.data.datasets[0].data.push({
+                        x: now,
+                        y: value
+                    });
+
+                    // Keep only last 50 points for performance
+                    if (chart.data.datasets[0].data.length > 50) {
+                        chart.data.datasets[0].data.shift();
+                    }
+
+                    chart.update('none');
+                }
+            });
+        }
+
+        function updateGamingStatus(isGaming, intensity) {
+            // Add or remove gaming indicators
+            document.querySelectorAll('.gaming-indicator').forEach(el => el.remove());
+            
+            if (isGaming && intensity > 0.3) {
+                const indicator = document.createElement('div');
+                indicator.className = 'gaming-indicator';
+                indicator.innerHTML = `<i class="fas fa-gamepad"></i> Gaming ${Math.round(intensity * 100)}%`;
+                
+                // Add to CPU and GPU cards
+                const cpuCard = document.getElementById('cpu-card');
+                const gpuCard = document.getElementById('gpu-card');
+                if (cpuCard) cpuCard.appendChild(indicator.cloneNode(true));
+                if (gpuCard) gpuCard.appendChild(indicator);
+            }
+        }
+
+        function updateAWSStatus(connected) {
+            const indicator = document.getElementById('awsIndicator');
+            const text = document.getElementById('awsStatusText');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = 'AWS Connected';
+            } else {
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = 'AWS Disconnected';
+            }
+        }
+
+        function generateAIRecommendations() {
+            const button = document.getElementById('generateAI');
+            const results = document.getElementById('aiResults');
+            
+            // Show loading state
+            button.disabled = true;
+            button.innerHTML = '<div class="loading"></div> Analyzing...';
+            
+            fetch('/api/ai_recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    preference: currentPreference
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayAIRecommendations(data.recommendations);
+                } else {
+                    results.innerHTML = `<div style="color: var(--accent-red);">Error: ${data.error}</div>`;
+                    results.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                results.innerHTML = `<div style="color: var(--accent-red);">Network Error: ${error.message}</div>`;
+                results.style.display = 'block';
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-magic"></i> Generate Optimal Curves';
+            });
+        }
+
+        function displayAIRecommendations(recommendations) {
+            const results = document.getElementById('aiResults');
+            
+            const fanCurves = recommendations.fan_curves;
+            const analysis = recommendations.analysis;
+            
+            results.innerHTML = `
+                <h4 style="color: var(--accent-purple); margin-bottom: 1rem;">
+                    <i class="fas fa-brain"></i> AI Analysis Complete
+                </h4>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Temperature Analysis:</strong><br>
+                    <small>CPU: Avg ${analysis.cpu.avg.toFixed(1)}°C, Max ${analysis.cpu.max.toFixed(1)}°C</small><br>
+                    <small>GPU: Avg ${analysis.gpu.avg.toFixed(1)}°C, Max ${analysis.gpu.max.toFixed(1)}°C</small><br>
+                    <small>Gaming sessions detected: ${analysis.gaming_sessions}</small>
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Recommended Fan Curves (${recommendations.preference}):</strong>
+                </div>
+                
+                <div style="display: grid; gap: 0.5rem; font-size: 0.8rem;">
+                    <div><strong>CPU Fan:</strong> ${fanCurves.cpu_fan.join(' → ')} RPM</div>
+                    <div><strong>GPU Fan:</strong> ${fanCurves.gpu_fan.join(' → ')} RPM</div>
+                    <div><strong>Case Fan:</strong> ${fanCurves.case_fan.join(' → ')} RPM</div>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.5rem; background: var(--bg-primary); border-radius: 5px; font-size: 0.8rem;">
+                    ${Object.values(recommendations.recommendations).join('<br>')}
+                </div>
+            `;
+            
+            results.style.display = 'block';
+        }
+
+        // Auto-refresh data every 30 seconds if no socket connection
+        setInterval(() => {
+            if (!socket || !socket.connected) {
+                loadInitialData();
+            }
+        }, 30000);
+    </script>
+</body>
+</html> 
