@@ -7,7 +7,7 @@ Course: Internet of Things
 """
 
 
-CLAUDE_API_KEY = "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"
+CLAUDE_API_KEY = "API KEY(mine is secret)"
 
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
