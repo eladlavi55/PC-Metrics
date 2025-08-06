@@ -1,8 +1,6 @@
 # PC MetricsX - Real-Time Gaming PC Monitoring Dashboard with AWS
 
 This project is a real-time dashboard for monitoring your gaming PC's key components like CPU, GPU, SSD, and motherboard. It shows live temperatures, fan speeds, and even uses AI to suggest the best fan curves for your setup. You can also connect it to AWS IoT for cloud features, but it works fine locally too.
-
-Demo Video: youtu.be/t5dDW7nQ_fE
  
 Main Features
 - Live monitoring of PC hardware (CPU, GPU, SSD, motherboard)
